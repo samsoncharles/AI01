@@ -82,9 +82,11 @@ Centralized log of all scanned samples with search, hash lookup, instant report 
 - Python 3.10+ with virtual environment configured
 - Trained model weights located in `~/combined2/AI1/malware_v2/models/`
 
-### 1. Activate Environment
+### 1. Create & Activate Environment
 ```bash
+python3 -m venv ~/tf313_env
 source ~/tf313_env/bin/activate
+pip install -r requirements.txt
 ```
 
 ### 2. Configure OpenAI API Key
