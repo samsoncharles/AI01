@@ -59,13 +59,24 @@ get_models()
 def _create_analysis(filepath, filename):
     """Run the normal pipeline and persist one analysis session."""
     results = analyze_file(filepath, app.config['UPLOAD_FOLDER'])
+    
+    # Handle the case where models failed to load and returned default {} model_results
+    cnn_pred = results['model_results'].get('CNN', {}).get('class', 'UNKNOWN')
+    cnn_conf = results['model_results'].get('CNN', {}).get('confidence', 0.0)
+    
+    lstm_pred = results['model_results'].get('RNN_BiLSTM', {}).get('class', 'UNKNOWN')
+    lstm_conf = results['model_results'].get('RNN_BiLSTM', {}).get('confidence', 0.0)
+    
+    hybrid_pred = results['model_results'].get('Hybrid_CNN_LSTM', {}).get('class', 'UNKNOWN')
+    hybrid_conf = results['model_results'].get('Hybrid_CNN_LSTM', {}).get('confidence', 0.0)
+
     analysis = Analysis(
         filename=filename, file_size=results['meta']['size_bytes'], file_type=results['meta']['file_type'],
         entropy=results['meta']['entropy'], md5=results['meta']['md5'], sha1=results['meta']['sha1'],
         sha256=results['meta']['sha256'], sha512=results['meta']['sha512'], png_path=results['png_filename'],
-        cnn_pred=results['model_results']['CNN']['class'], cnn_conf=results['model_results']['CNN']['confidence'],
-        lstm_pred=results['model_results']['RNN_BiLSTM']['class'], lstm_conf=results['model_results']['RNN_BiLSTM']['confidence'],
-        hybrid_pred=results['model_results']['Hybrid_CNN_LSTM']['class'], hybrid_conf=results['model_results']['Hybrid_CNN_LSTM']['confidence'],
+        cnn_pred=cnn_pred, cnn_conf=cnn_conf,
+        lstm_pred=lstm_pred, lstm_conf=lstm_conf,
+        hybrid_pred=hybrid_pred, hybrid_conf=hybrid_conf,
         consensus=results['consensus'], agreement=results['agreement'], verdict=results['verdict'],
         all_probs_json=json.dumps(results['all_probs'])
     )
