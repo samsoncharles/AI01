@@ -7,3 +7,4 @@ Pillow
 tf-nightly
 matplotlib
 reportlab
+openai
