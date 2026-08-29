@@ -195,7 +195,7 @@
                     <th class="text-end">Average</th>
                 </tr>
             </thead>
-            <tbody>
+                {% if 'CNN' in all_probs %}
                 {% set classes = all_probs['CNN'].keys() | list | sort %}
                 {% for cls in classes %}
                 {% set cnn_val = all_probs['CNN'][cls] * 100 %}
@@ -210,6 +210,9 @@
                     <td class="text-end fw-bold">{{ "%.4f"|format(avg) }}%</td>
                 </tr>
                 {% endfor %}
+                {% else %}
+                <tr><td colspan="5" class="text-center text-secondary py-4">No prediction probabilities available. Models were not loaded.</td></tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
@@ -220,73 +223,78 @@
 {% block scripts %}
 <script>
     const allProbs = {{ analysis.all_probs_json | safe }};
-    const classes = Object.keys(allProbs['CNN']);
-    
-    // Calculate averages to find top 5 classes
-    const averages = classes.map(cls => {
-        return {
-            cls: cls,
-            avg: (allProbs['CNN'][cls] + allProbs['RNN_BiLSTM'][cls] + allProbs['Hybrid_CNN_LSTM'][cls]) / 3
-        };
-    });
-    averages.sort((a, b) => b.avg - a.avg);
-    const top5 = averages.slice(0, 5).map(item => item.cls);
-    
-    const cnnData = top5.map(cls => allProbs['CNN'][cls] * 100);
-    const rnnData = top5.map(cls => allProbs['RNN_BiLSTM'][cls] * 100);
-    const hybridData = top5.map(cls => allProbs['Hybrid_CNN_LSTM'][cls] * 100);
-    
-    // Bar Chart
-    const ctxBar = document.getElementById('barChart').getContext('2d');
-    new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: top5,
-            datasets: [
-                { label: 'CNN', data: cnnData, backgroundColor: '#3b82f6' },
-                { label: 'BiLSTM', data: rnnData, backgroundColor: '#f59e0b' },
-                { label: 'Hybrid', data: hybridData, backgroundColor: '#ef4444' }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+    if (allProbs && allProbs['CNN']) {
+        const classes = Object.keys(allProbs['CNN']);
+        
+        // Calculate averages to find top 5 classes
+        const averages = classes.map(cls => {
+            return {
+                cls: cls,
+                avg: (allProbs['CNN'][cls] + allProbs['RNN_BiLSTM'][cls] + allProbs['Hybrid_CNN_LSTM'][cls]) / 3
+            };
+        });
+        averages.sort((a, b) => b.avg - a.avg);
+        const top5 = averages.slice(0, 5).map(item => item.cls);
+        
+        const cnnData = top5.map(cls => allProbs['CNN'][cls] * 100);
+        const rnnData = top5.map(cls => allProbs['RNN_BiLSTM'][cls] * 100);
+        const hybridData = top5.map(cls => allProbs['Hybrid_CNN_LSTM'][cls] * 100);
+        
+        // Bar Chart
+        const ctxBar = document.getElementById('barChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: top5,
+                datasets: [
+                    { label: 'CNN', data: cnnData, backgroundColor: '#3b82f6' },
+                    { label: 'BiLSTM', data: rnnData, backgroundColor: '#f59e0b' },
+                    { label: 'Hybrid', data: hybridData, backgroundColor: '#ef4444' }
+                ]
             },
-            plugins: {
-                legend: { labels: { color: '#f8fafc' } }
-            }
-        }
-    });
-
-    // Radar Chart
-    const ctxRadar = document.getElementById('radarChart').getContext('2d');
-    new Chart(ctxRadar, {
-        type: 'radar',
-        data: {
-            labels: top5,
-            datasets: [
-                { label: 'CNN', data: cnnData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)' },
-                { label: 'BiLSTM', data: rnnData, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' },
-                { label: 'Hybrid', data: hybridData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                r: {
-                    angleLines: { color: 'rgba(255,255,255,0.05)' },
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    pointLabels: { color: '#94a3b8' },
-                    ticks: { display: false, max: 100 }
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f8fafc' } }
                 }
-            },
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12 } }
             }
-        }
-    });
+        });
+
+        // Radar Chart
+        const ctxRadar = document.getElementById('radarChart').getContext('2d');
+        new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: top5,
+                datasets: [
+                    { label: 'CNN', data: cnnData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)' },
+                    { label: 'BiLSTM', data: rnnData, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' },
+                    { label: 'Hybrid', data: hybridData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(255,255,255,0.05)' },
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        pointLabels: { color: '#94a3b8' },
+                        ticks: { display: false, max: 100 }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12 } }
+                }
+            }
+        });
+    } else {
+        document.getElementById('barChart').parentElement.innerHTML = '<div class="d-flex h-100 align-items-center justify-content-center"><p class="text-secondary">Charts disabled (no models).</p></div>';
+        document.getElementById('radarChart').parentElement.innerHTML = '<div class="d-flex h-100 align-items-center justify-content-center"><p class="text-secondary">Charts disabled (no models).</p></div>';
+    }
 
     // --- AI Report & Chatbot Logic ---
     let reportMarkdown = '';

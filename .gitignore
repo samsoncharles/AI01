@@ -24,10 +24,8 @@ static/uploads/
 *.pdf
 
 # Models and plots
-malware_v2/models/
 malware_v2/plots/
 malware_v2/results/
-*.h5
 
 # OS generated files
 .DS_Store
