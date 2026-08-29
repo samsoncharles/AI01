@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero row align-items-center g-5">
+    <div class="col-lg-7">
+        <span class="eyebrow"><i class="fa-solid fa-sparkles"></i> Malware intelligence workspace</span>
+        <h1>Understand suspicious files before they become incidents.</h1>
+        <p class="hero-copy">
+            MalVision is a state-of-the-art deep learning platform trained on the MalImg dataset. 
+            By converting binary files into grayscale 2D visual representations, our ensemble of neural networks 
+            (CNN, BiLSTM, and a Hybrid architecture) can accurately identify malware families without relying on traditional, easily-evaded signatures.
+        </p>
+        <div class="d-flex flex-wrap gap-3">
+            <a href="{{ url_for('analyze') }}" class="btn btn-premium btn-lg">Analyze File Now <i class="fa-solid fa-arrow-right ms-2"></i></a>
+            <a href="{{ url_for('about') }}" class="btn btn-outline-premium btn-lg">Learn How It Works</a>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="glass-panel metric-panel p-4">
+            <div class="panel-label"><i class="fa-solid fa-chart-line"></i> Ensemble performance</div>
+            <h3 class="h4 mb-3">Three views. One confident verdict.</h3>
+
+            <!-- View toggle -->
+            <div class="view-toggle-bar" role="group" aria-label="Data view">
+                <button id="viewTable" class="active" aria-pressed="true"><i class="fa-solid fa-table-list"></i> Table</button>
+                <button id="viewPie" aria-pressed="false"><i class="fa-solid fa-chart-pie"></i> Pie</button>
+                <button id="viewBar" aria-pressed="false"><i class="fa-solid fa-chart-bar"></i> Bar</button>
+            </div>
+
+            <div class="metric-views">
+            <!-- Table view -->
+            <div class="metric-view active" id="metricTable">
+                <table class="table table-dark table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Architecture</th>
+                            <th class="text-end">Accuracy</th>
+                            <th class="text-end">FPR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><i class="fa-solid fa-image me-2 text-info"></i>CNN</td>
+                            <td class="text-end text-success fw-bold">92.42%</td>
+                            <td class="text-end">0.30%</td>
+                        </tr>
+                        <tr>
+                            <td><i class="fa-solid fa-water me-2 text-warning"></i>RNN / BiLSTM</td>
+                            <td class="text-end text-success fw-bold">91.13%</td>
+                            <td class="text-end">0.35%</td>
+                        </tr>
+                        <tr>
+                            <td><i class="fa-solid fa-layer-group me-2 text-danger"></i>Hybrid CNN-LSTM</td>
+                            <td class="text-end text-success fw-bold">90.69%</td>
+                            <td class="text-end">0.37%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pie chart view -->
+            <div class="metric-view" id="metricPie">
+                <canvas id="perfPieChart" height="200" aria-label="Accuracy pie chart"></canvas>
+            </div>
+
+            <!-- Bar chart view -->
+            <div class="metric-view" id="metricBar">
+                <canvas id="perfBarChart" height="200" aria-label="Accuracy bar chart"></canvas>
+            </div>
+            </div>
+
+            <div class="mt-3 text-secondary small">
+                <i class="fa-solid fa-info-circle me-1"></i> Voting consensus minimizes false positives.
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="content-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">Coverage</span><h2>Supported malware families</h2></div>
+        <p>26 classes spanning adware, worms, trojans, and packed binaries.</p>
+    </div>
+    <div class="row g-3 family-grid">
+        {% for fam in families %}
+        <div class="col-md-6 col-lg-4 {% if loop.index > 6 %}family-extra d-none{% endif %}">
+            <div class="card h-100 glass-panel malware-card bg-transparent text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h4 class="h5 card-title mb-0 fw-bold">{{ fam.name }}</h4>
+                        {% if fam.risk == 'Critical' %}
+                            <span class="badge badge-critical rounded-pill px-3 py-2"><i class="fa-solid fa-skull me-1"></i> Critical</span>
+                        {% elif fam.risk == 'High' %}
+                            <span class="badge badge-high rounded-pill px-3 py-2"><i class="fa-solid fa-radiation me-1"></i> High</span>
+                        {% else %}
+                            <span class="badge badge-medium rounded-pill px-3 py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> Medium</span>
+                        {% endif %}
+                    </div>
+                    <h6 class="card-subtitle mb-3 text-gradient"><i class="fa-solid fa-bug me-1"></i>{{ fam.type }}</h6>
+                    <p class="card-text text-secondary small">{{ fam.description }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="text-center mt-4"><button class="btn btn-outline-premium" id="familyToggle" type="button" aria-expanded="false">View all 26 families <i class="fa-solid fa-chevron-down ms-2"></i></button></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Family toggle ─────────────────────────────────────────────────────────────
+document.getElementById('familyToggle').addEventListener('click', function () {
+    const expanded = this.getAttribute('aria-expanded') === 'true';
+    document.querySelectorAll('.family-extra').forEach(card => card.classList.toggle('d-none', expanded));
+    this.setAttribute('aria-expanded', String(!expanded));
+    this.innerHTML = expanded
+        ? 'View all 26 families <i class="fa-solid fa-chevron-down ms-2"></i>'
+        : 'Show fewer families <i class="fa-solid fa-chevron-up ms-2"></i>';
+});
+
+// ── Metric panel view toggle ──────────────────────────────────────────────────
+const MODELS = {
+    labels: ['CNN', 'BiLSTM', 'Hybrid CNN-LSTM'],
+    accuracy: [92.42, 91.13, 90.69],
+    colors: ['rgba(56,189,248,.85)', 'rgba(251,191,36,.85)', 'rgba(248,113,113,.85)'],
+    borders: ['#38bdf8', '#fbbf24', '#f87171']
+};
+
+let pieChart = null, barChart = null;
+
+const views = ['Table', 'Pie', 'Bar'];
+const btns = { Table: document.getElementById('viewTable'), Pie: document.getElementById('viewPie'), Bar: document.getElementById('viewBar') };
+const panels = { Table: document.getElementById('metricTable'), Pie: document.getElementById('metricPie'), Bar: document.getElementById('metricBar') };
+
+function showView(name) {
+    views.forEach(v => {
+        btns[v].classList.toggle('active', v === name);
+        btns[v].setAttribute('aria-pressed', String(v === name));
+        panels[v].classList.toggle('active', v === name);
+    });
+    if (name === 'Pie' && !pieChart) {
+        pieChart = new Chart(document.getElementById('perfPieChart'), {
+            type: 'pie',
+            data: {
+                labels: MODELS.labels,
+                datasets: [{ data: MODELS.accuracy, backgroundColor: MODELS.colors, borderColor: MODELS.borders, borderWidth: 2 }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 } } },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}%` } }
+                }
+            }
+        });
+    }
+    if (name === 'Bar' && !barChart) {
+        barChart = new Chart(document.getElementById('perfBarChart'), {
+            type: 'bar',
+            data: {
+                labels: MODELS.labels,
+                datasets: [{
+                    label: 'Accuracy (%)',
+                    data: MODELS.accuracy,
+                    backgroundColor: MODELS.colors,
+                    borderColor: MODELS.borders,
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        min: 88, max: 95,
+                        ticks: { color: '#94a3b8', callback: v => v + '%' },
+                        grid: { color: 'rgba(148,163,184,.1)' }
+                    },
+                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}%` } }
+                }
+            }
+        });
+    }
+}
+
+Object.keys(btns).forEach(name => btns[name].addEventListener('click', () => showView(name)));
+</script>
+{% endblock %}

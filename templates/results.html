@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Marked JS for parsing markdown on the client-side -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div><span class="eyebrow">Investigation result</span><h1 class="h3 fw-bold m-0 mt-2">{{ analysis.filename }}</h1></div>
+    <div class="d-flex flex-wrap gap-2">
+        <form action="{{ url_for('reanalyze', sha256=analysis.sha256) }}" method="POST" style="display:inline;" onsubmit="document.getElementById('btnReanalyze').disabled=true; document.getElementById('btnReanalyze').innerHTML='<span class=\'spinner-border spinner-border-sm me-2\' role=\'status\' aria-hidden=\'true\'></span>Reanalyzing...';">
+            <button type="submit" class="btn btn-outline-warning shadow-sm" id="btnReanalyze">
+                <i class="fa-solid fa-arrows-rotate me-2"></i>Reanalyze
+            </button>
+        </form>
+        <a href="{{ url_for('generate_report', sha256=analysis.sha256) }}" class="btn btn-premium shadow-sm">
+            <i class="fa-solid fa-file-pdf me-2"></i>Download PDF Report
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Left Column: Visuals and Metadata -->
+    <div class="col-lg-4">
+        <!-- Image visualization -->
+        <div class="glass-panel p-3 mb-2 text-center">
+            <h4 class="h5 mb-3 border-bottom border-secondary pb-2"><i class="fa-solid fa-image text-primary me-2"></i>Binary Visualization</h4>
+            <div class="bg-dark rounded p-2 d-inline-block border border-secondary shadow-sm mb-3">
+                <img src="{{ url_for('static', filename='uploads/' + analysis.png_path) }}" alt="Binary Image" class="img-fluid" style="image-rendering: pixelated; max-width: 200px; max-height: 200px;">
+            </div>
+            <p class="small text-secondary m-0">Grayscale 2D representation of raw bytes.</p>
+        </div>
+        
+        <!-- Metadata -->
+        <div class="glass-panel p-3 mb-2">
+            <h4 class="h5 mb-3 border-bottom border-secondary pb-2"><i class="fa-solid fa-list-check text-primary me-2"></i>File Metadata</h4>
+            <table class="table table-dark table-sm mb-0">
+                <tbody>
+                    <tr><td class="text-secondary w-25">Size</td><td>{{ analysis.file_size }} bytes</td></tr>
+                    <tr><td class="text-secondary">Type</td><td class="text-truncate" style="max-width: 180px;" title="{{ analysis.file_type }}">{{ analysis.file_type }}</td></tr>
+                    <tr><td class="text-secondary">MD5</td><td class="small font-monospace text-truncate" style="max-width: 180px;" title="{{ analysis.md5 }}">{{ analysis.md5 }}</td></tr>
+                    <tr><td class="text-secondary">SHA-1</td><td class="small font-monospace text-truncate" style="max-width: 180px;" title="{{ analysis.sha1 }}">{{ analysis.sha1 }}</td></tr>
+                    <tr><td class="text-secondary">SHA-256</td><td class="small font-monospace text-truncate" style="max-width: 180px;" title="{{ analysis.sha256 }}">{{ analysis.sha256 }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Entropy -->
+        <div class="glass-panel p-3 mb-2">
+            <h4 class="h5 mb-2 border-bottom border-secondary pb-2"><i class="fa-solid fa-chart-bar text-primary me-2"></i>Shannon Entropy</h4>
+            <div class="d-flex align-items-center mb-2">
+                <h2 class="display-6 m-0 me-3 {% if analysis.entropy > 7.2 %}text-danger{% elif analysis.entropy > 6.0 %}text-warning{% else %}text-success{% endif %}">
+                    {{ "%.4f"|format(analysis.entropy) }}
+                </h2>
+                <div>
+                    {% if analysis.entropy < 4.0 %}
+                        <span class="badge bg-success">Low</span>
+                        <div class="small text-secondary">Likely plaintext</div>
+                    {% elif analysis.entropy <= 6.0 %}
+                        <span class="badge bg-info">Medium</span>
+                        <div class="small text-secondary">Mixed content</div>
+                    {% elif analysis.entropy <= 7.2 %}
+                        <span class="badge bg-warning text-dark">High</span>
+                        <div class="small text-secondary">Compiled binary</div>
+                    {% else %}
+                        <span class="badge bg-danger">Critical</span>
+                        <div class="small text-secondary">Packed or Encrypted</div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Progress Bar Gauge -->
+            <div class="progress bg-dark mb-2" style="height: 10px;">
+                <div class="progress-bar {% if analysis.entropy > 7.2 %}bg-danger{% elif analysis.entropy > 6.0 %}bg-warning{% else %}bg-success{% endif %}" role="progressbar" style="width: {{ (analysis.entropy / 8.0) * 100 }}%"></div>
+            </div>
+            <p class="small text-secondary m-0">Values > 7.2 indicate custom packers or obfuscation layers.</p>
+        </div>
+    </div>
+    
+    <!-- Right Column: Results -->
+    <div class="col-lg-8">
+        <!-- Verdict Banner -->
+        <div class="glass-panel p-3 mb-2 d-flex align-items-center justify-content-between {% if mal_info.risk == 'Critical' %}border-danger{% elif mal_info.risk == 'High' %}border-warning{% else %}border-info{% endif %}" style="border-width: 2px;">
+            <div>
+                <h5 class="text-secondary mb-1">Ensemble Consensus</h5>
+                <h2 class="fw-bold mb-0 {% if mal_info.risk == 'Critical' %}text-danger{% elif mal_info.risk == 'High' %}text-warning{% else %}text-info{% endif %}">{{ analysis.consensus }}</h2>
+            </div>
+            <div class="text-end">
+                <div class="h5 mb-1">{{ analysis.verdict }}</div>
+                <div class="badge bg-secondary rounded-pill fs-6">{{ analysis.agreement }} / 3 Models Agree</div>
+            </div>
+        </div>
+        
+        <!-- Individual Models -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="glass-panel p-3 text-center h-100 border border-info border-opacity-25">
+                    <div class="text-secondary small mb-2"><i class="fa-solid fa-image me-1 text-info"></i>CNN Spatial</div>
+                    <h5 class="fw-bold mb-1">{{ analysis.cnn_pred }}</h5>
+                    <div class="text-info font-monospace">{{ "%.2f"|format(analysis.cnn_conf * 100) }}%</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="glass-panel p-3 text-center h-100 border border-warning border-opacity-25">
+                    <div class="text-secondary small mb-2"><i class="fa-solid fa-wave-square me-1 text-warning"></i>BiLSTM Sequence</div>
+                    <h5 class="fw-bold mb-1">{{ analysis.lstm_pred }}</h5>
+                    <div class="text-warning font-monospace">{{ "%.2f"|format(analysis.lstm_conf * 100) }}%</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="glass-panel p-3 text-center h-100 border border-danger border-opacity-25">
+                    <div class="text-secondary small mb-2"><i class="fa-solid fa-layer-group me-1 text-danger"></i>Hybrid Ensemble</div>
+                    <h5 class="fw-bold mb-1">{{ analysis.hybrid_pred }}</h5>
+                    <div class="text-danger font-monospace">{{ "%.2f"|format(analysis.hybrid_conf * 100) }}%</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-7">
+                <div class="glass-panel p-3 h-100">
+                    <h5 class="h6 text-center text-secondary mb-3">Top Predictions Comparison</h5>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="glass-panel p-3 h-100">
+                    <h5 class="h6 text-center text-secondary mb-3">Model Confidence (Radar)</h5>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        
+        <!-- Family Info -->
+        <div class="glass-panel p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <h4 class="h5 border-bottom border-secondary pb-2 mb-0 flex-grow-1 me-3">Malware Family Profile</h4>
+                {% if mal_info.risk == 'Critical' %}
+                    <span class="badge badge-critical rounded-pill"><i class="fa-solid fa-skull me-1"></i> Critical Risk</span>
+                {% elif mal_info.risk == 'High' %}
+                    <span class="badge badge-high rounded-pill"><i class="fa-solid fa-radiation me-1"></i> High Risk</span>
+                {% else %}
+                    <span class="badge badge-medium rounded-pill"><i class="fa-solid fa-triangle-exclamation me-1"></i> Medium Risk</span>
+                {% endif %}
+            </div>
+            <div class="text-gradient fw-bold mb-2"><i class="fa-solid fa-bug me-1"></i>{{ mal_info.type }}</div>
+            <p class="text-secondary m-0" style="font-size: 0.95rem; line-height: 1.5;">{{ mal_info.description }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- AI Report Panel -->
+<div class="glass-panel p-3 mt-2 animate-fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-2 border-bottom border-secondary pb-1">
+        <div>
+            <h4 class="h5 m-0 fw-bold"><i class="fa-solid fa-brain text-gradient me-2"></i>AI Malware Expert Analysis Report</h4>
+            <p class="small text-secondary m-0 mt-1">Refined, deep learning insights regarding behaviors, indicators, and containment.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button id="downloadMdBtn" class="btn btn-sm btn-outline-premium">
+                <i class="fa-solid fa-file-code me-1"></i>Download MD
+            </button>
+        </div>
+    </div>
+    
+    <div id="reportContainer" class="report-body p-2">
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-secondary mt-2">Compiling AI Forensic Report...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Full Probability Table -->
+<div class="glass-panel p-3 mt-2 probability-panel">
+    <button class="probability-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#probabilityMatrix" aria-expanded="false" aria-controls="probabilityMatrix">
+        <span><i class="fa-solid fa-table text-primary me-2"></i>Full Prediction Probability Matrix</span><span class="small text-secondary">26 families <i class="fa-solid fa-chevron-down ms-2"></i></span>
+    </button>
+    <div class="collapse" id="probabilityMatrix">
+    <div class="table-responsive pt-3">
+        <table class="table table-dark table-hover table-sm">
+            <thead>
+                <tr>
+                    <th>Malware Class</th>
+                    <th class="text-end">CNN Confidence</th>
+                    <th class="text-end">BiLSTM Confidence</th>
+                    <th class="text-end">Hybrid Confidence</th>
+                    <th class="text-end">Average</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set classes = all_probs['CNN'].keys() | list | sort %}
+                {% for cls in classes %}
+                {% set cnn_val = all_probs['CNN'][cls] * 100 %}
+                {% set lstm_val = all_probs['RNN_BiLSTM'][cls] * 100 %}
+                {% set hybrid_val = all_probs['Hybrid_CNN_LSTM'][cls] * 100 %}
+                {% set avg = (cnn_val + lstm_val + hybrid_val) / 3 %}
+                <tr>
+                    <td>{{ cls }}</td>
+                    <td class="text-end {% if cnn_val > 50 %}text-info fw-bold{% elif cnn_val > 10 %}text-info{% endif %}">{{ "%.4f"|format(cnn_val) }}%</td>
+                    <td class="text-end {% if lstm_val > 50 %}text-warning fw-bold{% elif lstm_val > 10 %}text-warning{% endif %}">{{ "%.4f"|format(lstm_val) }}%</td>
+                    <td class="text-end {% if hybrid_val > 50 %}text-danger fw-bold{% elif hybrid_val > 10 %}text-danger{% endif %}">{{ "%.4f"|format(hybrid_val) }}%</td>
+                    <td class="text-end fw-bold">{{ "%.4f"|format(avg) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const allProbs = {{ analysis.all_probs_json | safe }};
+    const classes = Object.keys(allProbs['CNN']);
+    
+    // Calculate averages to find top 5 classes
+    const averages = classes.map(cls => {
+        return {
+            cls: cls,
+            avg: (allProbs['CNN'][cls] + allProbs['RNN_BiLSTM'][cls] + allProbs['Hybrid_CNN_LSTM'][cls]) / 3
+        };
+    });
+    averages.sort((a, b) => b.avg - a.avg);
+    const top5 = averages.slice(0, 5).map(item => item.cls);
+    
+    const cnnData = top5.map(cls => allProbs['CNN'][cls] * 100);
+    const rnnData = top5.map(cls => allProbs['RNN_BiLSTM'][cls] * 100);
+    const hybridData = top5.map(cls => allProbs['Hybrid_CNN_LSTM'][cls] * 100);
+    
+    // Bar Chart
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: top5,
+            datasets: [
+                { label: 'CNN', data: cnnData, backgroundColor: '#3b82f6' },
+                { label: 'BiLSTM', data: rnnData, backgroundColor: '#f59e0b' },
+                { label: 'Hybrid', data: hybridData, backgroundColor: '#ef4444' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc' } }
+            }
+        }
+    });
+
+    // Radar Chart
+    const ctxRadar = document.getElementById('radarChart').getContext('2d');
+    new Chart(ctxRadar, {
+        type: 'radar',
+        data: {
+            labels: top5,
+            datasets: [
+                { label: 'CNN', data: cnnData, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)' },
+                { label: 'BiLSTM', data: rnnData, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' },
+                { label: 'Hybrid', data: hybridData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                r: {
+                    angleLines: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    pointLabels: { color: '#94a3b8' },
+                    ticks: { display: false, max: 100 }
+                }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12 } }
+            }
+        }
+    });
+
+    // --- AI Report & Chatbot Logic ---
+    let reportMarkdown = '';
+    
+    function renderNormalizedReport(markdownText) {
+        const container = document.getElementById('reportContainer');
+        if (!markdownText) {
+            container.innerHTML = '<p class="text-secondary">No report content.</p>';
+            return;
+        }
+
+        const normalized = markdownText.replace(/\r\n/g, '\n');
+        const sections = [];
+        let currentSection = { title: '', content: '' };
+        
+        const lines = normalized.split('\n');
+        let introText = '';
+        
+        for (let line of lines) {
+            if (line.startsWith('## ')) {
+                if (currentSection.title || currentSection.content) {
+                    sections.push({ ...currentSection });
+                }
+                currentSection.title = line.substring(3).trim();
+                currentSection.content = '';
+            } else {
+                if (currentSection.title) {
+                    currentSection.content += line + '\n';
+                } else {
+                    introText += line + '\n';
+                }
+            }
+        }
+        if (currentSection.title || currentSection.content) {
+            sections.push(currentSection);
+        }
+        
+        let html = '';
+        if (introText.trim()) {
+            html += `<div class="mb-1 text-secondary">${marked.parse(introText)}</div>`;
+        }
+        
+        if (sections.length > 0) {
+            html += `<div class="accordion" id="reportAccordion">`;
+            sections.forEach((sec, index) => {
+                const collapseId = `collapseSec${index}`;
+                const headerId = `headingSec${index}`;
+                const showClass = index === 0 ? 'show' : '';
+                const collapsedClass = index === 0 ? '' : 'collapsed';
+                const ariaExpanded = index === 0 ? 'true' : 'false';
+                
+                html += `
+                <div class="accordion-item bg-dark border-secondary text-white mb-1 rounded overflow-hidden">
+                    <h2 class="accordion-header" id="${headerId}">
+                        <button class="accordion-button bg-dark-gradient text-white ${collapsedClass} border-0 shadow-none fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="${ariaExpanded}" aria-controls="${collapseId}" style="background: rgba(30,41,59,0.85); font-size: 0.95rem; padding: 0.5rem 0.75rem;">
+                            ${escapeHtml(sec.title)}
+                        </button>
+                    </h2>
+                    <div id="${collapseId}" class="accordion-collapse collapse ${showClass}" aria-labelledby="${headerId}" data-bs-parent="#reportAccordion">
+                        <div class="accordion-body bg-dark text-secondary p-3" style="background: #0f172a; line-height:1.4; font-size:0.9rem;">
+                            ${marked.parse(sec.content)}
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+            html += `</div>`;
+        } else {
+            html = marked.parse(markdownText);
+        }
+        
+        container.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Load AI report Markdown dynamically and render
+    async function loadReport() {
+        try {
+            const res = await fetch(`/results/{{ analysis.sha256 }}/report_text`);
+            const data = await res.json();
+            reportMarkdown = data.report;
+            renderNormalizedReport(reportMarkdown);
+        } catch (err) {
+            document.getElementById('reportContainer').innerHTML = '<p class="text-danger">Error rendering report.</p>';
+        }
+    }
+    
+    // Download controls
+    document.getElementById('downloadMdBtn').addEventListener('click', () => {
+        if (!reportMarkdown) return;
+        const blob = new Blob([reportMarkdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `MalVision_Report_{{ analysis.sha256 }}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // Page Load Setup
+    document.addEventListener('DOMContentLoaded', () => {
+        loadReport();
+    });
+</script>
+
+<style>
+    #reportAccordion p {
+        margin-bottom: 0.4rem !important;
+    }
+    #reportAccordion p:last-child {
+        margin-bottom: 0 !important;
+    }
+    #reportAccordion ul, #reportAccordion ol {
+        margin-bottom: 0.4rem !important;
+        padding-left: 1.25rem !important;
+    }
+</style>
+{% endblock %}

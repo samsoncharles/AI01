@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="history-page">
+<section class="history-hero">
+    <div><span class="eyebrow">Investigation archive</span><h1>Analysis history</h1><p>Review previous classifications, reopen an investigation, or export its report.</p></div>
+    <a href="{{ url_for('analyze') }}" class="btn btn-premium"><i class="fa-solid fa-plus me-2"></i>Analyze a file</a>
+</section>
+
+<!-- Stats Dashboard -->
+{% if analyses %}
+<section class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="glass-panel stat-card p-3">
+            <div class="stat-icon" style="background:rgba(59,130,246,.12);color:#60a5fa;"><i class="fa-solid fa-folder-open"></i></div>
+            <div><div class="stat-value">{{ analyses|length }}</div><div class="stat-label">Total investigations</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="glass-panel stat-card p-3">
+            <div class="stat-icon" style="background:rgba(239,68,68,.12);color:#fca5a5;"><i class="fa-solid fa-skull-crossbones"></i></div>
+            <div><div class="stat-value">{{ analyses|selectattr('agreement','equalto',3)|list|length }}</div><div class="stat-label">High confidence</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="glass-panel stat-card p-3">
+            <div class="stat-icon" style="background:rgba(16,185,129,.12);color:#34d399;"><i class="fa-solid fa-circle-check"></i></div>
+            <div><div class="stat-value">{{ "%.0f"|format((analyses|map(attribute='cnn_conf')|list|sum / analyses|length) * 100) }}%</div><div class="stat-label">Avg. CNN confidence</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="glass-panel stat-card p-3">
+            <div class="stat-icon" style="background:rgba(139,92,246,.12);color:#a78bfa;"><i class="fa-solid fa-chart-pie"></i></div>
+            <div><div class="stat-value">{{ analyses|map(attribute='consensus')|list|unique|list|length }}</div><div class="stat-label">Unique families</div></div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Toolbar -->
+<section class="history-toolbar glass-panel">
+    <label class="history-search" for="historySearch"><i class="fa-solid fa-magnifying-glass"></i><input id="historySearch" type="search" placeholder="Search filename, hash, or malware family"></label>
+    <div class="d-flex align-items-center gap-2">
+        <select id="historySort" class="form-select form-select-sm history-sort" aria-label="Sort investigations">
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="confidence-desc">Confidence ↓</option>
+        </select>
+        <div class="history-count"><span id="historyCount">{{ analyses|length }}</span> investigations</div>
+    </div>
+</section>
+
+<!-- Investigation List -->
+<section class="glass-panel history-table-shell">
+    <table class="table table-dark table-hover history-table align-middle mb-0" style="min-width: 800px;">
+        <thead class="sticky-top" style="background: rgba(14, 22, 42, .95); backdrop-filter: blur(12px); border-bottom: 2px solid var(--line-strong); z-index: 10;">
+            <tr>
+                <th scope="col" style="width: 24px; padding-left: 1.25rem;"></th>
+                <th scope="col" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding-block: 1rem;">File Name</th>
+                <th scope="col" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Verdict</th>
+                <th scope="col" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Agreement</th>
+                <th scope="col" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">CNN Conf</th>
+                <th scope="col" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
+                <th scope="col" class="text-end" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding-right: 1.25rem;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="investigationList">
+            {% for a in analyses %}
+            <tr class="investigation-row" tabindex="0"
+                data-search="{{ a.filename|lower }} {{ a.sha256|lower }} {{ a.consensus|lower }} {{ a.verdict|lower }}"
+                data-name="{{ a.filename }}" data-family="{{ a.consensus }}" data-hash="{{ a.sha256[:16] }}…"
+                data-timestamp="{{ a.timestamp.strftime('%Y%m%d%H%M%S') }}"
+                data-confidence="{{ a.cnn_conf }}"
+                data-url="{{ url_for('results', sha256=a.sha256) }}"
+                style="cursor: pointer; transition: background 0.15s ease;">
+                <td style="padding-left: 1.25rem;">
+                    <div class="investigation-risk-dot {% if a.agreement == 3 %}bg-success{% elif a.agreement == 2 %}bg-warning{% else %}bg-danger{% endif %} rounded-circle" style="width: 8px; height: 8px; box-shadow: 0 0 8px currentColor;"></div>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center gap-3 py-1">
+                        <span class="file-icon" style="width: 32px; height: 32px; font-size: 0.9rem;"><i class="fa-solid fa-file-shield"></i></span>
+                        <div>
+                            <div class="fw-bold text-white mb-0" style="font-size: 0.88rem; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.filename }}</div>
+                            <div class="text-muted d-flex align-items-center gap-2" style="font-size: 0.72rem; margin-top: 2px;">
+                                <span>{{ a.file_size }} bytes</span>
+                                <span style="color: var(--line-strong);">|</span>
+                                <code style="background: transparent; padding: 0; color: #64748b;">{{ a.sha256[:12] }}...</code>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="verdict-pill" style="font-size: 0.75rem; padding: 0.2rem 0.6rem;">{{ a.consensus }}</span>
+                </td>
+                <td>
+                    <span class="agreement" style="font-size: 0.8rem; font-weight: 500;"><i class="fa-solid fa-circle-check"></i> {{ a.agreement }}/3</span>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center gap-2" style="max-width: 120px;">
+                        <div class="progress flex-grow-1" style="height: 4px; background: rgba(148,163,184,.12);">
+                            <div class="progress-bar conf-bar-cnn" role="progressbar" style="width: {{ "%.0f"|format(a.cnn_conf * 100) }}%;"></div>
+                        </div>
+                        <span class="conf-bar-value fw-bold" style="font-size: 0.75rem; min-width: 32px;">{{ "%.0f"|format(a.cnn_conf * 100) }}%</span>
+                    </div>
+                </td>
+                <td style="font-size: 0.78rem; color: var(--text-secondary);">
+                    {{ a.timestamp.strftime('%d %b %Y, %H:%M') }}
+                </td>
+                <td class="text-end" style="padding-right: 1.25rem;">
+                    <div class="investigation-actions d-inline-flex justify-content-end w-100 gap-1">
+                        <a href="{{ url_for('results', sha256=a.sha256) }}" class="icon-action" style="width: 28px; height: 28px; font-size: 0.8rem;" title="Open"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                        <a href="{{ url_for('generate_report', sha256=a.sha256) }}" class="icon-action" style="width: 28px; height: 28px; font-size: 0.8rem;" title="Download PDF"><i class="fa-solid fa-file-pdf"></i></a>
+                        <button class="icon-action delete-btn delete-action" style="width: 28px; height: 28px; font-size: 0.8rem;" data-id="{{ a.sha256 }}" data-filename="{{ a.filename }}" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <div class="empty-state">
+                        <span class="empty-icon"><i class="fa-solid fa-folder-open"></i></span>
+                        <h2>No investigations yet</h2>
+                        <p>Analyze your first file to build a searchable investigation history.</p>
+                        <a href="{{ url_for('analyze') }}" class="btn btn-premium mt-2">Analyze a file</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            <tr id="noSearchResults" class="d-none">
+                <td colspan="7" class="text-center py-5">
+                    <div class="empty-state">
+                        <span class="empty-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <h2>No matching investigations</h2>
+                        <p>Try another filename, hash, or malware family.</p>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content glass-panel border border-danger border-opacity-50 text-white"><div class="modal-header border-secondary"><h5 class="modal-title text-danger" id="deleteModalLabel"><i class="fa-solid fa-triangle-exclamation me-2"></i>Delete investigation</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body">Permanently delete <strong id="deleteFilename"></strong>? Its visual data, reports, and history record will be removed.</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-sm btn-outline-secondary text-white" data-bs-dismiss="modal">Cancel</button><form id="deleteForm" method="POST"><button type="submit" class="btn btn-sm btn-danger">Delete investigation</button></form></div></div></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const search = document.getElementById('historySearch');
+const cards = [...document.querySelectorAll('.investigation-row')];
+const count = document.getElementById('historyCount');
+const noResults = document.getElementById('noSearchResults');
+const sortSelect = document.getElementById('historySort');
+
+// Search filter
+search?.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    let visible = 0;
+    cards.forEach(card => {
+        const match = card.dataset.search.includes(query);
+        card.classList.toggle('d-none', !match);
+        if (match) visible++;
+    });
+    count.textContent = visible;
+    noResults.classList.toggle('d-none', visible || !cards.length);
+});
+
+// Sort
+sortSelect?.addEventListener('change', () => {
+    const val = sortSelect.value;
+    const list = document.getElementById('investigationList');
+    const sorted = [...cards].sort((a, b) => {
+        switch (val) {
+            case 'date-desc': return b.dataset.timestamp.localeCompare(a.dataset.timestamp);
+            case 'date-asc': return a.dataset.timestamp.localeCompare(b.dataset.timestamp);
+            case 'name-asc': return a.dataset.name.localeCompare(b.dataset.name);
+            case 'name-desc': return b.dataset.name.localeCompare(a.dataset.name);
+            case 'confidence-desc': return parseFloat(b.dataset.confidence) - parseFloat(a.dataset.confidence);
+            default: return 0;
+        }
+    });
+    sorted.forEach(card => list.appendChild(card));
+});
+
+// Click row to navigate
+const selectInvestigation = card => {
+    cards.forEach(item => item.classList.remove('selected'));
+    card.classList.add('selected');
+    window.dispatchEvent(new CustomEvent('malvision:sample-selected', { detail: { name: card.dataset.name, family: card.dataset.family, hash: card.dataset.hash } }));
+};
+cards.forEach(card => {
+    card.addEventListener('click', event => {
+        if (event.target.closest('a, button')) return;
+        window.location.href = card.dataset.url;
+    });
+    card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href = card.dataset.url; }
+    });
+});
+
+// Delete modal
+document.querySelectorAll('.delete-btn').forEach(button => button.addEventListener('click', () => {
+    document.getElementById('deleteFilename').textContent = button.dataset.filename;
+    document.getElementById('deleteForm').action = `/history/delete/${button.dataset.id}`;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}));
+</script>
+{% endblock %}

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalVision | AI Malware Analysis</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css', v='20260829g') }}">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="app-layout page-{{ request.endpoint }}">
+    <!-- ===== Fixed Header ===== -->
+    <nav class="app-navbar" aria-label="Primary navigation" role="banner">
+        <div class="app-container">
+            <button class="sidebar-toggle" id="sidebarToggle" type="button"
+                    aria-label="Toggle navigation" aria-controls="appSidebar" aria-expanded="true">
+                <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
+            <a class="brand" href="{{ url_for('index') }}" aria-label="MalVision home">
+                <span class="brand-mark" aria-hidden="true"><i class="fa-solid fa-shield-virus"></i></span>
+                <span>MalVision</span>
+            </a>
+            <a class="header-action ms-auto" href="{{ url_for('analyze') }}" aria-label="Start a new analysis">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                <span>New analysis</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+    <div class="app-workspace" id="appShell">
+        <aside class="app-sidebar" id="appSidebar" aria-label="Workspace navigation">
+            <div class="sidebar-label">Workspace</div>
+            <nav class="sidebar-nav">
+                <a class="{% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}"><i class="fa-solid fa-chart-pie"></i><span>Overview</span></a>
+                <a class="{% if request.endpoint == 'analyze' %}active{% endif %}" href="{{ url_for('analyze') }}"><i class="fa-solid fa-magnifying-glass"></i><span>Analyze file</span></a>
+                <a class="{% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}"><i class="fa-solid fa-clock-rotate-left"></i><span>Analysis history</span></a>
+                <a class="{% if request.endpoint == 'about' %}active{% endif %}" href="{{ url_for('about') }}"><i class="fa-solid fa-circle-info"></i><span>About MalVision</span></a>
+            </nav>
+            <div class="sidebar-bottom"><i class="fa-solid fa-shield-halved"></i><span>Protected workspace</span></div>
+        </aside>
+        <main class="app-content animate-fade-in" id="appContent">
+            <div class="container app-container app-main">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-warning alert-dismissible fade show glass-panel text-white" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Fixed Footer ===== -->
+    <footer class="app-footer" role="contentinfo">
+        <div class="app-container">
+            <small><i class="fa-solid fa-shield-halved me-1" style="color:#3b82f6"></i> &copy; 2026 MalVision</small>
+            <small class="d-none d-sm-inline">AI-powered, signature-free malware classification</small>
+            <small class="ms-auto d-none d-md-flex align-items-center gap-2"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block"></span>System online</small>
+        </div>
+    </footer>
+
+    {% block modals %}{% endblock %}
+
+    <!-- Global Chatbot Widget -->
+    <div class="chat-widget collapsed" id="globalChatWidget" role="dialog"
+         aria-label="MalVision assistant" aria-hidden="true"
+         {% if request.endpoint == 'results' and analysis is defined %}
+         data-mode="results"
+         data-sha256="{{ analysis.sha256 }}"
+         data-filename="{{ analysis.filename }}"
+         data-family="{{ analysis.consensus }}"
+         {% else %}
+         data-mode="general"
+         {% endif %}>
+        <div class="chat-header">
+            <span class="fw-bold"><i class="fa-solid fa-robot text-gradient me-2"></i>MalVision AI</span>
+            <div class="d-flex align-items-center gap-1">
+                <button class="icon-action" id="globalChatClear" aria-label="Clear chat" title="Clear chat"><i class="fa-solid fa-trash-can fa-sm"></i></button>
+                <button class="icon-action" id="globalChatClose" aria-label="Close chat"><i class="fa-solid fa-xmark fa-sm"></i></button>
+            </div>
+        </div>
+        <div class="chat-messages" id="globalChatMessages" aria-live="polite"></div>
+        <div class="chat-chips" id="globalChatChips"></div>
+        <form class="chat-input-area" id="globalChatForm">
+            <input id="globalChatInput" type="text" autocomplete="off" placeholder="Ask anything…" aria-label="Ask MalVision assistant">
+            <button type="submit" class="chat-send-btn" aria-label="Send message"><i class="fa-solid fa-arrow-up"></i></button>
+        </form>
+    </div>
+    <button class="chat-toggle" id="globalChatToggle" aria-label="Open MalVision assistant" aria-expanded="false">
+        <i class="fa-solid fa-comments fa-lg"></i>
+    </button>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (() => {
+        // ════════ SIDEBAR ══════════════════════════════════════
+        const sidebarToggle   = document.getElementById('sidebarToggle');
+        const appShell        = document.getElementById('appShell');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+        const appSidebar      = document.getElementById('appSidebar');
+        const compact         = window.matchMedia('(max-width: 767.98px)');
+
+        const isSidebarOpen = () => !appShell.classList.contains('sidebar-is-closed');
+
+        const setSidebar = (open, persist = false) => {
+            appShell.classList.toggle('sidebar-is-closed', !open);
+            sidebarToggle.classList.toggle('is-closed', !open);
+            document.body.classList.toggle('sidebar-is-open', open && compact.matches);
+            sidebarToggle.setAttribute('aria-expanded', String(open));
+            sidebarToggle.title = open ? 'Hide sidebar' : 'Show sidebar';
+            if (persist && !compact.matches) localStorage.setItem('mv-sidebar', String(open));
+        };
+
+        setSidebar(compact.matches ? false : localStorage.getItem('mv-sidebar') !== 'false');
+
+        sidebarToggle.addEventListener('click', e => {
+            e.stopPropagation();
+            setSidebar(!isSidebarOpen(), true);
+        });
+        sidebarBackdrop.addEventListener('click', () => setSidebar(false, true));
+
+        // Click-outside on DESKTOP (capture phase runs before inner handlers)
+        document.addEventListener('click', e => {
+            if (!isSidebarOpen()) return;
+            if (compact.matches) return; // backdrop handles mobile
+            if (!appSidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+                setSidebar(false, true);
+            }
+        }, true);
+
+        compact.addEventListener('change', e =>
+            setSidebar(e.matches ? false : localStorage.getItem('mv-sidebar') !== 'false')
+        );
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') setSidebar(false); });
+        document.querySelectorAll('.sidebar-nav a').forEach(l =>
+            l.addEventListener('click', () => { if (compact.matches) setSidebar(false); })
+        );
+
+        // ════════ CHATBOT ══════════════════════════════════════
+        const chatToggle = document.getElementById('globalChatToggle');
+        const widget     = document.getElementById('globalChatWidget');
+        const closeBtn   = document.getElementById('globalChatClose');
+        const clearBtn   = document.getElementById('globalChatClear');
+        const msgBox     = document.getElementById('globalChatMessages');
+        const input      = document.getElementById('globalChatInput');
+        const form       = document.getElementById('globalChatForm');
+        const chipsBox   = document.getElementById('globalChatChips');
+
+        if (!chatToggle || !widget) return;
+
+        const mode      = widget.dataset.mode;
+        const isResults = mode === 'results';
+        const sha256    = widget.dataset.sha256 || '';
+        const sName     = widget.dataset.filename || '';
+        const sFam      = widget.dataset.family || '';
+        const endpoint  = '{{ request.endpoint }}';
+
+        const CTX = {
+            index:   { chips: ['How does MalVision work?', 'What malware families are supported?', 'How accurate are the models?'],
+                       intro: 'Welcome to MalVision! Ask me anything about the platform, AI models, or how to start an analysis.' },
+            analyze: { chips: ['Which file types can I upload?', 'How long does analysis take?', 'What does entropy mean?'],
+                       intro: 'Ready to analyze a file? Drop a PE binary and our CNN + BiLSTM + Hybrid ensemble will classify it.' },
+            history: { chips: ['How do I revisit a past result?', 'What does confidence score mean?', 'How are results stored?'],
+                       intro: 'Browse past investigations. Click any card to open its full forensic report.' },
+            about:   { chips: ['How does visual classification work?', 'What training data was used?', 'What is Shannon entropy?'],
+                       intro: 'Ask me about the models, the MalImg dataset, or any technical aspect of MalVision.' },
+            results: { chips: ['Explain this malware family', 'Significance of Shannon entropy?', 'Suggest containment steps', 'How do models vote?'],
+                       intro: `Investigating ${sName || 'this sample'} — classified as ${sFam || 'unknown'}. Ask me anything about this binary.` }
+        };
+
+        const ctx      = CTX[endpoint] || { chips: ['How can I help?'], intro: 'How can I help today?' };
+        const chipList = isResults ? CTX.results.chips : ctx.chips;
+        const introTxt = isResults ? CTX.results.intro  : ctx.intro;
+
+        // — sessionStorage persistence so chat survives page navigation —
+        const SKEY = 'mv-chat-' + endpoint + (isResults ? '-' + sha256 : '');
+        const saveChat  = arr => { try { sessionStorage.setItem(SKEY, JSON.stringify(arr)); } catch {} };
+        const loadChat  = ()  => { try { return JSON.parse(sessionStorage.getItem(SKEY) || 'null'); } catch { return null; } };
+
+        let stored = loadChat();
+        let chatHistory = [];
+
+        const appendMsg = (text, isUser = false) => {
+            const el = document.createElement('div');
+            el.className = `message ${isUser ? 'user' : 'ai'}`;
+            el.textContent = text;
+            msgBox.appendChild(el);
+            msgBox.scrollTop = msgBox.scrollHeight;
+            return el;
+        };
+
+        // Restore or initialise
+        if (stored && stored.length) {
+            stored.forEach(({ text, user }) => appendMsg(text, user));
+        } else {
+            appendMsg(introTxt);
+            stored = [{ text: introTxt, user: false }];
+            saveChat(stored);
+        }
+
+        // Chips
+        chipList.forEach(q => {
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = 'chip-btn'; b.textContent = q;
+            b.addEventListener('click', () => { input.value = q; form.requestSubmit(); });
+            chipsBox.appendChild(b);
+        });
+
+        // Open/close
+        const setOpen = open => {
+            widget.classList.toggle('collapsed', !open);
+            widget.setAttribute('aria-hidden', String(!open));
+            chatToggle.setAttribute('aria-expanded', String(open));
+            chatToggle.classList.toggle('chat-toggle-open', open);
+            if (open) setTimeout(() => input.focus(), 150);
+        };
+
+        chatToggle.addEventListener('click', e => {
+            e.stopPropagation();
+            setOpen(widget.classList.contains('collapsed'));
+        });
+        closeBtn.addEventListener('click', () => setOpen(false));
+
+        // Click-outside — capture phase to fire before any inner listeners
+        document.addEventListener('click', e => {
+            if (widget.classList.contains('collapsed')) return;
+            if (!widget.contains(e.target) && !chatToggle.contains(e.target)) setOpen(false);
+        }, true);
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !widget.classList.contains('collapsed')) setOpen(false);
+        });
+
+        // Clear
+        clearBtn.addEventListener('click', () => {
+            chatHistory = []; msgBox.innerHTML = '';
+            appendMsg(introTxt);
+            stored = [{ text: introTxt, user: false }];
+            saveChat(stored);
+        });
+
+        window.addEventListener('malvision:sample-selected', ev => {
+            const d = ev.detail;
+            const t = `Context updated — now viewing ${d.name} (predicted: ${d.family}). Open its result page for the full forensic AI assistant.`;
+            appendMsg(t);
+            stored.push({ text: t, user: false }); saveChat(stored);
+        });
+
+        // — Lightweight knowledge engine for non-results pages —
+        const generalReply = raw => {
+            const q = raw.toLowerCase();
+            if (/entropy|shannon/.test(q))
+                return 'Shannon entropy measures byte randomness in a file. Packed/encrypted malware shows entropy > 7.0 bits/byte. MalVision surfaces this alongside model predictions as a heuristic signal.';
+            if (/cnn|convolut/.test(q))
+                return 'The CNN model converts the binary into a grayscale 2D image and extracts spatial texture patterns — like a visual fingerprint. It achieves 92.42% accuracy on the MalImg dataset.';
+            if (/bilstm|lstm|rnn|recurrent/.test(q))
+                return 'The BiLSTM model reads raw byte sequences in both directions, capturing temporal patterns and byte n-gram signatures unique to each malware family. It achieves 91.13% accuracy.';
+            if (/hybrid/.test(q))
+                return 'The Hybrid CNN-LSTM model fuses spatial image features with sequential byte patterns — achieving 90.69% accuracy and robust detection of polymorphic malware.';
+            if (/confidence|score|accuracy|accurate|how good/.test(q))
+                return 'Confidence scores are softmax probabilities. Scores above 85% are considered high-confidence. Final verdict uses majority voting across all three models to minimise false positives.';
+            if (/famil|class|support|detect|what malware/.test(q))
+                return 'MalVision is trained on 26 families from MalImg: Allaple, Cerber, Lollipop, Swizzor, Vundo, Kelihos, UPX-packed variants, and more. The Overview page lists all 26 with risk ratings.';
+            if (/upload|file|format|pe|exe|dll|sys|what.*upload/.test(q))
+                return 'MalVision accepts Windows PE files (EXE, DLL, SYS) and raw binary blobs. After upload the file is converted to a grayscale byte-map and fed to all three models simultaneously.';
+            if (/how long|time|fast|slow|speed|dur/.test(q))
+                return 'Typical analysis completes in 5–30 seconds. Larger files (> 2 MB) take slightly longer due to the image conversion step.';
+            if (/safe|secur|privac|stor|data|hash/.test(q))
+                return 'Files are stored locally and identified only by SHA-256 hash. Nothing is sent to external services. You can delete any analysis from the History page at any time.';
+            if (/history|past|previous|investigat/.test(q))
+                return 'The Analysis History page shows all past investigations with confidence bars and filters. Click any card to reopen its full forensic report.';
+            if (/report|pdf|download|markdown/.test(q))
+                return 'Each analysis generates an AI forensic report downloadable as Markdown or PDF. The PDF filename includes the binary name and SHA-256 hash.';
+            if (/about|malvision|platform|project|what is it/.test(q))
+                return 'MalVision is a signature-free AI malware analysis platform using three deep learning models (CNN, BiLSTM, Hybrid) trained on the MalImg dataset to classify unknown binaries from their byte-map images.';
+            if (/analyz|start|begin|how.*use|how.*work/.test(q))
+                return 'Go to Analyze File, drag & drop a PE binary, click Analyze. All three models run in parallel and you are redirected to the results page with predictions, charts, and an AI forensic report.';
+            return 'I am the MalVision AI assistant. I can explain how the models work, guide you through analyzing a file, interpret results, or answer questions about malware families. What would you like to know?';
+        };
+
+        // Submit
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const value = input.value.trim();
+            if (!value) return;
+            appendMsg(value, true);
+            stored.push({ text: value, user: true });
+            input.value = '';
+
+            if (isResults) {
+                const loadEl = appendMsg('Consulting AI SOC analyst…');
+                try {
+                    const res  = await fetch(`/results/${sha256}/chat`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: value, history: chatHistory })
+                    });
+                    const data = await res.json();
+                    loadEl.remove();
+                    if (data.reply) {
+                        appendMsg(data.reply);
+                        stored.push({ text: data.reply, user: false });
+                        chatHistory.push({ role: 'user', content: value });
+                        chatHistory.push({ role: 'assistant', content: data.reply });
+                        if (data.suggestion) {
+                            const card = document.createElement('div');
+                            card.className = 'chat-suggestion-card';
+                            card.innerHTML = `<strong><i class="fa-solid fa-file-circle-plus me-1"></i>Suggested Report Update</strong><p style="font-size:.8rem;margin:.4rem 0 0;color:var(--text-secondary)">${data.suggestion}</p>`;
+                            const btn = document.createElement('button');
+                            btn.className = 'btn btn-primary btn-sm mt-2';
+                            btn.innerHTML = '<i class="fa-solid fa-plus me-1"></i>Add to Report';
+                            btn.addEventListener('click', async () => {
+                                btn.disabled = true; btn.textContent = 'Appending…';
+                                try {
+                                    const r  = await fetch(`/results/${sha256}/append_report`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: data.suggestion }) });
+                                    const rd = await r.json();
+                                    if (rd.ok) { btn.textContent = '✓ Added'; btn.style.background = 'var(--success)'; }
+                                    else { btn.textContent = 'Failed'; btn.disabled = false; }
+                                } catch { btn.textContent = 'Error'; btn.disabled = false; }
+                            });
+                            card.appendChild(btn);
+                            msgBox.lastElementChild.appendChild(card);
+                            msgBox.scrollTop = msgBox.scrollHeight;
+                        }
+                    } else { appendMsg('Sorry, I could not process that.'); }
+                } catch { loadEl.remove(); appendMsg('Network error. Please try again.'); }
+            } else {
+                // Typing indicator
+                const typingEl = document.createElement('div');
+                typingEl.className = 'message ai typing-indicator';
+                typingEl.innerHTML = '<span></span><span></span><span></span>';
+                msgBox.appendChild(typingEl);
+                msgBox.scrollTop = msgBox.scrollHeight;
+                await new Promise(r => setTimeout(r, 650));
+                typingEl.remove();
+                const reply = generalReply(value);
+                appendMsg(reply);
+                stored.push({ text: reply, user: false });
+            }
+            saveChat(stored);
+        });
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

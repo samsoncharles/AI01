@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center analyze-page">
+    <div class="col-md-10 col-lg-7">
+        <div class="glass-panel upload-panel p-4 p-md-5 text-center">
+            <span class="eyebrow justify-content-center">New investigation</span>
+            <h1 class="h2 fw-bold mb-3">Analyze a suspicious file</h1>
+            <p class="text-secondary mb-4 mx-auto" style="max-width: 38rem;">
+                Upload any binary file (EXE, DLL, ELF, PDF, etc.). We will convert it to a visual representation and run our ensemble of neural networks to classify it into one of 26 malware families.
+            </p>
+            
+            <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                <div class="mb-4">
+                    <label for="fileUpload" class="form-label d-none">Select File</label>
+                    <input class="form-control form-control-lg form-control-dark" type="file" id="fileUpload" name="file" required aria-describedby="fileHelp">
+                    <div id="fileHelp" class="form-text text-secondary text-start mt-2">EXE, DLL, ELF, PDF, and other binary formats are supported.</div>
+                </div>
+                
+                <button type="submit" class="btn btn-premium btn-lg w-100" id="analyzeBtn">
+                    <i class="fa-solid fa-magnifying-glass me-2"></i> Run Analysis
+                </button>
+            </form>
+            
+            <div id="loading" class="mt-4 d-none" aria-live="polite">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 class="text-white">Analyzing file...</h5>
+                <p class="text-secondary small">Computing hashes, calculating entropy, generating visual representation, and querying ensemble models. Please wait.</p>
+            </div>
+            <div class="analysis-steps text-start mt-4">
+                <span><i class="fa-solid fa-fingerprint"></i> Hash &amp; metadata</span><span><i class="fa-solid fa-chart-simple"></i> Entropy profile</span><span><i class="fa-solid fa-brain"></i> 3-model consensus</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How It Works Pipeline -->
+<section class="content-section mt-4 analyze-pipeline">
+    <div class="section-heading">
+        <div><span class="eyebrow"><i class="fa-solid fa-gears"></i> Pipeline</span><h2>How it works</h2></div>
+        <p>Three stages turn a raw binary into an actionable classification.</p>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="glass-panel p-4 h-100 text-center">
+                <div class="mb-3"><span class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width:52px;height:52px;background:rgba(59,130,246,.15);border:1px solid rgba(96,165,250,.25);"><i class="fa-solid fa-upload fa-lg text-info"></i></span></div>
+                <h5 class="fw-bold mb-2">1. Upload</h5>
+                <p class="small text-secondary mb-0">Drop any suspicious binary. We extract SHA-256, MD5, and SHA-1 hashes, compute Shannon entropy, and identify the file type — all locally.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel p-4 h-100 text-center">
+                <div class="mb-3"><span class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width:52px;height:52px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.25);"><i class="fa-solid fa-image fa-lg" style="color:#a78bfa;"></i></span></div>
+                <h5 class="fw-bold mb-2">2. Visual conversion</h5>
+                <p class="small text-secondary mb-0">Raw bytes are reshaped into a 64×64 grayscale image. This visual fingerprint captures structural patterns unique to each malware family.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel p-4 h-100 text-center">
+                <div class="mb-3"><span class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width:52px;height:52px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.25);"><i class="fa-solid fa-brain fa-lg text-success"></i></span></div>
+                <h5 class="fw-bold mb-2">3. AI classification</h5>
+                <p class="small text-secondary mb-0">Three independent neural networks (CNN, BiLSTM, Hybrid) vote on the family. A consensus verdict is produced along with per-model confidence scores.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- What We Detect & Supported Formats -->
+<section class="content-section mt-4 analyze-summary">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="glass-panel p-4 h-100">
+                <h5 class="fw-bold mb-3"><i class="fa-solid fa-shield-virus text-primary me-2"></i>What we detect</h5>
+                <p class="small text-secondary">Our ensemble covers <strong class="text-white">26 malware families</strong> spanning multiple threat categories:</p>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge badge-critical rounded-pill px-3 py-2"><i class="fa-solid fa-skull me-1"></i> Ransomware</span>
+                    <span class="badge badge-high rounded-pill px-3 py-2"><i class="fa-solid fa-radiation me-1"></i> Trojans</span>
+                    <span class="badge badge-medium rounded-pill px-3 py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> Worms</span>
+                    <span class="badge badge-medium rounded-pill px-3 py-2"><i class="fa-solid fa-bug me-1"></i> Adware</span>
+                    <span class="badge badge-high rounded-pill px-3 py-2"><i class="fa-solid fa-lock me-1"></i> Packers</span>
+                    <span class="badge badge-medium rounded-pill px-3 py-2"><i class="fa-solid fa-robot me-1"></i> Botnets</span>
+                </div>
+                <p class="small text-secondary mb-0">Trained on 9,328 samples from the MalImg benchmark dataset with 90–92% accuracy.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="glass-panel p-4 h-100">
+                <h5 class="fw-bold mb-3"><i class="fa-solid fa-file-zipper text-warning me-2"></i>Supported formats</h5>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <ul class="list-unstyled small text-secondary mb-0">
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">EXE</strong> — Windows executables</li>
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">DLL</strong> — Dynamic libraries</li>
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">ELF</strong> — Linux binaries</li>
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">PDF</strong> — Portable documents</li>
+                        </ul>
+                    </div>
+                    <div class="col-6">
+                        <ul class="list-unstyled small text-secondary mb-0">
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">SYS</strong> — Kernel drivers</li>
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">APK</strong> — Android packages</li>
+                            <li class="mb-2"><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">SCR</strong> — Screensavers</li>
+                            <li><i class="fa-solid fa-check text-success me-2"></i><strong class="text-white">Any</strong> — Raw binary blobs</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-top" style="border-color: var(--line) !important;">
+                    <p class="small text-secondary mb-0"><i class="fa-solid fa-lock text-success me-2"></i><strong class="text-white">Privacy:</strong> All processing is performed locally. Files are never transmitted to external servers.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block modals %}
+{% if duplicate %}
+<div class="modal fade" id="duplicateModal" tabindex="-1" aria-labelledby="duplicateModalTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content glass-panel text-white duplicate-modal">
+        <div class="modal-header border-secondary"><div><span class="eyebrow">Duplicate detected</span><h2 class="h5 mb-0 mt-2" id="duplicateModalTitle">This file has already been analyzed</h2></div></div>
+        <div class="modal-body"><p class="text-secondary">The uploaded bytes match <strong class="text-white">{{ duplicate.filename }}</strong>. Choose how to continue.</p>
+            <div class="duplicate-summary"><span>Existing family</span><strong>{{ duplicate.consensus }}</strong><span>Original SHA-256</span><code>{{ duplicate.sha256[:16] }}…</code></div>
+            <form id="duplicateActionForm" action="{{ url_for('duplicate_action') }}" method="post">
+                <input type="hidden" name="token" value="{{ duplicate_token }}"><input type="hidden" name="sha256" value="{{ duplicate.sha256 }}"><input type="hidden" name="action" id="duplicateAction">
+                <label class="form-label small text-secondary mt-3" for="duplicateName">Use a different display name (optional)</label>
+                <input class="form-control form-control-dark" id="duplicateName" name="new_filename" value="{{ duplicate_filename }}">
+                <div class="duplicate-options mt-3">
+                    <button class="duplicate-option" name="action" value="replace"><i class="fa-solid fa-arrow-rotate-left"></i><span><strong>Replace old analysis</strong><small>Delete the existing session and analyze this upload.</small></span></button>
+                    <button class="duplicate-option" name="action" value="rename"><i class="fa-solid fa-pen"></i><span><strong>Keep and rename</strong><small>Keep this identical sample under the new display name.</small></span></button>
+                    <button class="duplicate-option" name="action" value="reanalyze"><i class="fa-solid fa-arrows-rotate"></i><span><strong>Reanalyze old session</strong><small>Refresh its model result and report.</small></span></button>
+                    <button class="duplicate-option" name="action" value="open"><i class="fa-solid fa-arrow-up-right-from-square"></i><span><strong>Open existing result</strong><small>Review the original investigation.</small></span></button>
+                </div>
+                <div class="modal-footer px-0 pb-0 border-0"><button class="btn btn-outline-secondary text-white" id="cancelDuplicate" type="button">Cancel upload</button></div>
+            </form>
+        </div>
+    </div></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('uploadForm').addEventListener('submit', function() {
+        document.getElementById('analyzeBtn').disabled = true;
+        document.getElementById('uploadForm').classList.add('d-none');
+        document.getElementById('loading').classList.remove('d-none');
+    });
+    {% if duplicate %}
+    const duplicateModal = new bootstrap.Modal(document.getElementById('duplicateModal'));
+    duplicateModal.show();
+    document.querySelectorAll('.duplicate-option').forEach(button => button.addEventListener('click', event => {
+        event.preventDefault();
+        document.getElementById('duplicateAction').value = button.value;
+        document.querySelectorAll('.duplicate-option, #duplicateActionForm .btn').forEach(control => control.disabled = true);
+        button.classList.add('is-processing');
+        const title = button.querySelector('strong');
+        if (title) title.textContent = 'Working…';
+        document.getElementById('duplicateActionForm').submit();
+    }));
+    document.getElementById('cancelDuplicate').addEventListener('click', () => {
+        document.getElementById('duplicateAction').value = 'cancel';
+        document.getElementById('duplicateActionForm').submit();
+    });
+    {% endif %}
+</script>
+{% endblock %}
