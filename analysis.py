@@ -86,6 +86,10 @@ def preprocess_image(path):
 
 def predict(image_path):
     cnn, lstm, hybrid = get_models()
+
+    if cnn is None or lstm is None or hybrid is None:
+        return {}, {}, "UNKNOWN", 0, "NO MODELS LOADED"
+
     cnn_input, rnn_input = preprocess_image(image_path)
 
     cnn_pred = cnn.predict(cnn_input, verbose=0)[0]
